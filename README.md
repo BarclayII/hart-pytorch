@@ -12,5 +12,8 @@ same place as the source code files.
 
 Then run `main.py` with Python 3.
 
-The feature is not complete; gradient clipping and CUDA support is not
-implemented yet.
+The feature is not complete; TODO:
+* Gradient clipping
+* CUDA support
+* Validation and Test
+* Visualization (Tensorboard or Visdom; I would like to use Visdom but probably not until they have sliders)
