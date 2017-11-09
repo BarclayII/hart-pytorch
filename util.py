@@ -153,3 +153,8 @@ def bbox_to_mask(bbox, region_size, output_size):
 
     masks = T.stack(masks, 0)
     return masks.view(*leading_shape, *output_size)
+
+
+def addbox(ax, b, ec):
+    ax.add_patch(PA.Rectangle((b[0] - b[2] / 2, b[1] - b[3] / 2), b[2], b[3],
+                 ec=ec, fill=False, lw=1))
