@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 class AdaptiveLoss(nn.Module):
     def __init__(self, n_losses=None, weights=None):
+        nn.Module.__init__(self)
         self.lambdas = nn.ParameterList()
         if weights is not None:
             for w in weights:

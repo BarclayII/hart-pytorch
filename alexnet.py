@@ -3,10 +3,11 @@ import torch as T
 from torch import nn
 import torch.nn.functional as F
 from torchvision import models as tvmodels
+from util import *
+import numpy as np
 
 class AlexNetModel(nn.Module):
     def __init__(self,
-                 weight_file,
                  n_out_feature_maps=10,
                  layer=7,
                  upsample=False,
@@ -30,6 +31,7 @@ class AlexNetModel(nn.Module):
             if isinstance(module, nn.Conv2d):
                 in_channels = module.out_channels
                 self.n_out_channels = in_channels
+
         self.features = nn.Sequential(*features)
 
         self.readout = nn.Conv2d(in_channels, n_out_feature_maps, (1, 1))
@@ -38,6 +40,20 @@ class AlexNetModel(nn.Module):
             self.norm = nn.BatchNorm2d(n_out_feature_maps)
         else:
             self.norm = None
+
+    def compute_output_size(self, input_size):
+        output_size = input_size
+        for module in self.features:
+            if isinstance(module, nn.Conv2d):
+                output_size = conv_output_size(
+                        output_size,
+                        module.kernel_size,
+                        module.padding,
+                        module.stride)
+        return output_size
+
+    def compute_output_flatsize(self, input_size):
+        return np.asscalar(np.prod(self.compute_output_size(input_size)))
 
     def forward(self, x):
         if self.upsample:

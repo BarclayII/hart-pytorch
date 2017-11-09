@@ -32,22 +32,23 @@ class HART(nn.Module):
         '''
         batch_size, nframes, nchannels, nrows, ncols = x.size()
         rnn_output, rnn_state, att0, app0 = self.attention_cell.zero_state(
-                x, bbox0, presence0)
+                x[:, 0], bbox0, presence0)
 
         outputs = []
         for i in range(nframes):
             output = self.attention_cell(
                     x[:, i], att0, app0, presence0, rnn_state)
-            outputs.append(output)
+            outputs.append(output[:3] + output[4:])     # skip rnn states
             att0, app0, presence0, rnn_state = output[:4]
 
-        atts, apps, presence_logits, states, outputs, \
-                glims, mask_logits, mask_feats = [
-                        T.stack(o, 1) for o in zip(*outputs)]
+        _outputs = outputs
+        # atts, apps: the attention/appearance features for next frame
+        atts, apps, presence_logits, outputs, glims, mask_logits, mask_feats = \
+                [T.stack(o, 1) for o in zip(*outputs)]
 
         bbox_delta = self.bbox_predictor(outputs.view(batch_size * nframes, -1))
         bbox_delta = bbox_delta.view(
-                batch_size, nframes, attention_cell.n_glims, 4)
+                batch_size, nframes, self.attention_cell.n_glims, 4)
 
         # (batch_size, nframes, nobjs, att_params)
         atts = T.cat([att0.unsqueeze(1), atts], 1)
@@ -58,18 +59,18 @@ class HART(nn.Module):
         bbox_delta_scaled = T.cat([
             tovar(T.zeros(bbox_delta[:, 0:1].size())),
             bbox_delta], 1)
-        bbox_scaler = T.Tensor([ncols, nrows, ncols, nrows])
+        bbox_scaler = tovar(T.Tensor([ncols, nrows, ncols, nrows]))
         bbox_delta_scaled = bbox_delta_scaled * bbox_scaler
 
         bbox = bbox_delta_scaled + bbox_from_att_nobias
 
         return (
-                bbox,
-                atts,
+                bbox[:, :-1],
+                atts[:, :-1],
                 mask_logits,
-                bbox_from_att,
-                bbox_from_att_nobias,
-                presences_logits,
+                bbox_from_att[:, :-1],
+                bbox_from_att_nobias[:, :-1],
+                presence_logits,
                 )
 
     def losses(self,
@@ -86,7 +87,7 @@ class HART(nn.Module):
         att_intersection_loss = intersection_loss(
                 bbox_from_att, bbox_target, presences_target)
         att_area_loss = area_loss(
-                bbox_from_att, img_rows, img_cols, presence_target)
+                bbox_from_att, img_rows, img_cols, presences_target)
 
         target_mask_bbox = intersection_within(bbox_target, bbox_from_att)
         att_rows = bbox_from_att[..., 3]
@@ -94,7 +95,8 @@ class HART(nn.Module):
 
         target_obj_mask = bbox_to_mask(
                 target_mask_bbox,
-                (att_rows, att_cols),
+                att_rows,
+                att_cols,
                 mask_logits.size()[-2:])
 
         pos = target_obj_mask.sum(4, keepdim=True).sum(3, keepdim=True)
@@ -103,12 +105,11 @@ class HART(nn.Module):
         frac_neg = 1 - frac_pos
         weight = target_obj_mask * frac_pos + (1 - target_obj_mask) * frac_neg
 
+        weight = weight * presences_target[:, :, :, np.newaxis, np.newaxis]
+        weight = weight / presences_target.sum()
+
         obj_mask_xe = F.binary_cross_entropy_with_logits(
                 mask_logits, target_obj_mask, weight)
-        obj_mask_xe = obj_mask_xe.mean(4).mean(3)
-
-        obj_mask_xe = obj_mask_xe * presences_target
-        obj_mask_xe = obj_mask_xe.sum() / presences_target.sum()
 
         return (
                 bbox_loss,

@@ -5,6 +5,9 @@ import torch.nn.functional as F
 import numpy as np
 from torch.nn import init
 
+from dfn import DynamicConvFilter, DynamicConvFilterGenerator
+from zoneout import ZoneoutLSTMCell
+from util import *
 
 def gaussian_masks(c, d, s, len_, glim_len):
     '''
@@ -15,17 +18,21 @@ def gaussian_masks(c, d, s, len_, glim_len):
     '''
     batch_size, n_glims = c.size()
 
-    R = tovar(T.arange(0, glim_len)).view(1, 1, 1, -1)
+    # The original HART code did not shift the coordinates by
+    # glim_len / 2.  The generated Gaussian attention does not
+    # correspond to the actual crop of the bbox.
+    # Possibly a bug?
+    R = tovar(T.arange(0, glim_len)).view(1, 1, 1, -1) - glim_len / 2
     C = tovar(T.arange(0, len_)).view(1, 1, -1, 1)
     C = C.expand(batch_size, n_glims, len_, 1)
     c = c[:, :, np.newaxis, np.newaxis]
     d = d[:, :, np.newaxis, np.newaxis]
     s = s[:, :, np.newaxis, np.newaxis]
 
-    cr = c + R / d
-    sr = T.ones(cr.size()) * s
+    cr = c + R * d
+    sr = tovar(T.ones(cr.size())) * s
 
-    mask = C - ur
+    mask = C - cr
     mask = (-0.5 * (mask / sr) ** 2).exp()
 
     mask = mask / (mask.sum(2, keepdim=True) + 1e-8)
@@ -45,20 +52,20 @@ def extract_gaussian_glims(x, a, glim_size):
     _, nchannels, nrows, ncols = x.size()
     n_glim_rows, n_glim_cols = glim_size
 
-    # (batch_size, n_glims, n_glim_rows, nrows)
+    # (batch_size, n_glims, nrows, n_glim_rows)
     Fy = gaussian_masks(cy, dy, sy, nrows, n_glim_rows)
-    # (batch_size, n_glims, n_glim_cols, ncols)
+    # (batch_size, n_glims, ncols, n_glim_cols)
     Fx = gaussian_masks(cx, dx, sx, ncols, n_glim_cols)
 
-    # (batch_size, n_glims, 1, n_glim_rows, nrows)
+    # (batch_size, n_glims, 1, nrows, n_glim_rows)
     Fy = Fy.unsqueeze(2)
-    # (batch_size, n_glims, 1, n_glim_cols, ncols)
+    # (batch_size, n_glims, 1, ncols, n_glim_cols)
     Fx = Fx.unsqueeze(2)
 
     # (batch_size, 1, nchannels, nrows, ncols)
     x = x.unsqueeze(1)
     # (batch_size, n_glims, nchannels, n_glim_rows, n_glim_cols)
-    g = Fy @ x @ Fx
+    g = Fy.transpose(-1, -2) @ x @ Fx
 
     return g
 
@@ -86,7 +93,7 @@ class RATMAttention(nn.Module):
         '''
         # (batch_size, n_glims, att_params)
         absolute_att = self._to_absolute_attention(spatial_att)
-        glims = extract_gaussian_glims(x, absolute_att)
+        glims = extract_gaussian_glims(x, absolute_att, self.glim_size)
 
         return glims
 
@@ -109,8 +116,13 @@ class RATMAttention(nn.Module):
         '''
         cx = bbox[..., 0] / self.x_size[1]
         cy = bbox[..., 1] / self.x_size[0]
-        w = spatial_att[..., 2] / (self.x_size[1] - 1)
-        h = spatial_att[..., 3] / (self.x_size[0] - 1)
+        dx = bbox[..., 2] / (self.x_size[1] - 1)
+        dy = bbox[..., 3] / (self.x_size[0] - 1)
+        sx = bbox[..., 2] * 0.5 / self.x_size[1]
+        sy = bbox[..., 3] * 0.5 / self.x_size[0]
+        spatial_att = T.stack([cx, cy, dx, dy, sx, sy], -1)
+
+        return spatial_att
 
     def _to_axis_attention(self, image_len, glim_len, c, d, s):
         c = c * image_len
@@ -124,8 +136,8 @@ class RATMAttention(nn.Module):
         '''
         n_image_rows, n_image_cols = self.x_size
         n_glim_rows, n_glim_cols = self.glim_size
-        cx, dx, sx = params[..., ::2]
-        cy, dy, sy = params[..., 1::2]
+        cx, dx, sx = T.unbind(params[..., ::2], -1)
+        cy, dy, sy = T.unbind(params[..., 1::2], -1)
         cx, dx, sx = self._to_axis_attention(
                 n_image_cols, n_glim_cols, cx, dx, sx)
         cy, dy, sy = self._to_axis_attention(
@@ -147,7 +159,7 @@ class AttentionCell(nn.Module):
                  attender,
                  zoneout_prob,
                  n_glims=1,
-                 n_dfn_channels=5,
+                 n_dfn_channels=10,
                  att_scale_logit_init=-2.5,
                  normalize_glimpse=False,
                  mask_feat_size=10):
@@ -160,6 +172,7 @@ class AttentionCell(nn.Module):
         self.app_size = app_size
         self.att_params = attender.att_params
         self.mask_feat_size = mask_feat_size
+        glim_flatsize = np.asscalar(np.prod(glim_size))
 
         self.pre_dfngen = DynamicConvFilterGenerator(
                 app_size,
@@ -174,8 +187,7 @@ class AttentionCell(nn.Module):
                 app_size,
                 n_dfn_channels,
                 n_dfn_channels,
-                (3, 3),
-                padding=1)
+                (3, 3))
         self.dfn = DynamicConvFilter(
                 n_dfn_channels,
                 n_dfn_channels,
@@ -183,7 +195,10 @@ class AttentionCell(nn.Module):
                 padding=1)
         self.proj = nn.Sequential(
                 nn.Linear(
-                    n_dfn_channels * np.prod(glim_size),
+                    n_glims * (
+                        n_dfn_channels *
+                        feature_extractor.compute_output_flatsize(glim_size) +
+                        self.attender.att_params),
                     state_size),
                 nn.ELU(),
                 )
@@ -194,14 +209,17 @@ class AttentionCell(nn.Module):
         self.rnncell = ZoneoutLSTMCell(state_size, state_size, p=zoneout_prob)
         self.masker = nn.Conv2d(n_dfn_channels, 1, (1, 1))
         self.mask_feat_extractor = nn.Sequential(
-                nn.Linear(np.prod(glim_size), mask_feat_size),
+                nn.Linear(
+                    feature_extractor.compute_output_flatsize(glim_size),
+                    mask_feat_size
+                    ),
                 nn.ELU(),
                 )
         att_pred_output_layer = nn.Linear(state_size, n_glims * self.att_params)
         init.uniform(att_pred_output_layer.weight, -1e-3, 1e-3)
         init.constant(att_pred_output_layer.bias, 0)
         self.att_pred_layer = nn.Sequential(
-                nn.Linear(state_size + mask_feat_size, state_size),
+                nn.Linear(state_size + mask_feat_size * n_glims, state_size),
                 nn.ELU(),
                 att_pred_output_layer,
                 nn.Tanh(),
@@ -227,7 +245,7 @@ class AttentionCell(nn.Module):
         att = self.attender.bbox_to_att(bbox)
         rnn_state = self.rnncell.zero_state(batch_size)
 
-        _, feats _ = self.extract_features(x, att, None)
+        _, feats, _ = self.extract_features(x, att, None)
         rnn_output, rnn_state = self.rnncell(feats, rnn_state)
 
         att += self.att_bias.view(1, 1, -1)
@@ -240,7 +258,7 @@ class AttentionCell(nn.Module):
         '''
         x: 4D Tensor (batch_size, nchannels, n_image_rows, n_image_cols)
         spatial_att: 3D Tensor (batch_size, n_glims, att_params)
-        appearance: 3D Tensor (batch_size, n_glims, app_dims)
+        appearance: 3D Tensor (batch_size, n_glims, app_size)
             or None (when first called during hidden state initialization)
 
         returns:
@@ -248,7 +266,7 @@ class AttentionCell(nn.Module):
         projected_feats: 2D
             (batch_size, state_size)
         mask_logit: 3D or None (if appearance is None)
-            (batch_size, n_glims, n_glim_rows, n_glim_cols)
+            (batch_size, n_glims, raw_feat_rows, raw_feat_cols)
         '''
         # (batch_size, n_glims, nchannels, n_glim_rows, n_glim_cols)
         glims = self.attender(x, spatial_att)
@@ -262,9 +280,11 @@ class AttentionCell(nn.Module):
         raw_feats, readout, feats = self.feature_extractor(glims_reshaped)
 
         if appearance is not None:
-            appearance = appearance.view(-1, self.app_dims)
+            appearance = appearance.view(-1, self.app_size)
+            _, _, raw_feat_rows, raw_feat_cols = raw_feats.size()
 
-            # (batch_size * n_glims, n_dfn_channels, n_glim_rows, n_glim_cols)
+            # (batch_size * n_glims, n_dfn_channels,
+            #  raw_feat_rows, raw_feat_cols)
             pre_dfn_feats = F.elu(self.pre_dfn(raw_feats, appearance, self.pre_dfngen))
             dfn_feats = F.elu(self.dfn(pre_dfn_feats, appearance, self.dfngen))
 
@@ -272,7 +292,7 @@ class AttentionCell(nn.Module):
             mask = F.sigmoid(mask_logit)
             masked_feats = feats * mask
             mask_logit = mask_logit.squeeze(1).view(
-                    batch_size, n_glims, n_glim_rows, n_glim_cols)
+                    batch_size, n_glims, raw_feat_rows, raw_feat_cols)
         else:
             masked_feats = feats
             mask_logit = None
@@ -310,7 +330,7 @@ class AttentionCell(nn.Module):
         new_app: (batch_size, n_glims, app_size)
         presence: (batch_size, n_glims)
         glims: (batch_size, n_glims, nchannels, n_glim_rows, n_glim_cols)
-        mask_logit: (batch_size, n_glims, n_glim_rows, n_glim_cols)
+        mask_logit: (batch_size, n_glims, raw_feat_rows, raw_feat_cols)
         mask_feats: (batch_size, n_glims, mask_feat_size)
         next_state: something shouldn't care
         '''

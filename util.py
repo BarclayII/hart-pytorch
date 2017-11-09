@@ -1,7 +1,10 @@
 
 import os
 import torch as T
-from inspect import signature
+import torch.nn.functional as F
+import numpy as np
+import matplotlib.patches as PA
+import scipy.misc
 
 def cuda(obj):
     if os.getenv('USE_CUDA', None):
@@ -13,9 +16,9 @@ def cuda(obj):
 
 def tovar(*arrs, **kwargs):
     tensors = [(T.from_numpy(a) if isinstance(a, np.ndarray) else a) for a in arrs]
-    vars_ = [T.autograd.Variable(t, **kwargs) for t in tensors]
     if os.getenv('USE_CUDA', None):
-        vars_ = [v.cuda() for v in vars_]
+        tensors = [t.cuda() for t in tensors]
+    vars_ = [T.autograd.Variable(t.float(), **kwargs) for t in tensors]
     return vars_[0] if len(vars_) == 1 else vars_
 
 
@@ -23,6 +26,13 @@ def tonumpy(*vars_):
     arrs = [(v.data.cpu().numpy() if isinstance(v, T.autograd.Variable) else
              v.cpu().numpy() if T.is_tensor(v) else v) for v in vars_]
     return arrs[0] if len(arrs) == 1 else arrs
+
+
+def toscalar(*vars_):
+    arrs = [(v.data.cpu().numpy() if isinstance(v, T.autograd.Variable) else
+             v.cpu().numpy() if T.is_tensor(v) else v) for v in vars_]
+    scalars = [np.asscalar(a) for a in arrs]
+    return scalars[0] if len(scalars) == 1 else scalars
 
 
 def normalize_contrast(x):
@@ -90,8 +100,8 @@ def masked_nll(x, presence, weight=None):
         nll_x = nll_x * weight
     nll_x = nll_x * (presence != 0).float()
     p = (presence != 0).float().sum(1)
-    nll = nll_x.sum(1) / p.clamp(min=1) * (p != 0).float()
-    return nll.sum() / (p != 0).float().sum()
+    _nll = nll_x.sum(1) / p.clamp(min=1) * (p != 0).float()
+    return _nll.sum() / (p != 0).float().sum()
 
 
 def iou_loss(a, b, presence):
@@ -124,32 +134,38 @@ def area_loss(pred, nrows, ncols, presence):
 
 def _bbox_to_mask(yy, region_size, output_size):
     neg_part = (-yy[:2]).clamp(min=0)
-    core_shape = T.round(yy[2:] - neg_part).data.int()
+    core_shape = T.round(yy[2:] - neg_part).int().clamp(min=1)
     core = tovar(T.ones(core_shape[1], core_shape[0]))
 
-    y1 = yy[1].clamp(min=0)
-    x1 = yy[0].clamp(min=0)
-    y2 = (yy[1] + yy[3]).clamp(max=region_size[0])
-    x2 = (yy[0] + yy[2]).clamp(max=region_size[1])
+    y1 = max(yy[1], 0)
+    x1 = max(yy[0], 0)
+    y2 = min(yy[1] + yy[3], region_size[0])
+    x2 = min(yy[0] + yy[2], region_size[1])
 
     padspace = (x1, region_size[1] - x2, y1, region_size[0] - y2)
+    padspace = tuple(int(_) for _ in padspace)
     core = core.unsqueeze(0).unsqueeze(1)
     padded = F.pad(core, padspace).squeeze(1).squeeze(0)
 
-    region_size = region_size.round().int()
-    mask = tonumpy(padded[:region_size[0], :region_size[1]])
-    resized_mask = tovar(scipy.misc.imresize(mask, output_size))
+    mask = tonumpy(padded[:int(region_size[0]), :int(region_size[1])])
+    resized_mask = tovar(scipy.misc.imresize(mask, output_size) / 255.)
     return resized_mask
 
 
-def bbox_to_mask(bbox, region_size, output_size):
+def bbox_to_mask(bbox, region_rows, region_cols, output_size):
     leading_shape = bbox.size()[:-1]
     bbox_flat = bbox.view(-1, 4)
-    region_size_flat = region_size_flat.view(-1, 2)
+    region_rows_flat = region_rows.contiguous().view(-1)
+    region_cols_flat = region_cols.contiguous().view(-1)
 
     masks = []
-    for b, rs in zip(bbox_flat, region_size):
-        masks.append(_bbox_to_mask(b, rs, output_size))
+    for b, rows, cols in zip(bbox_flat, region_rows_flat, region_cols_flat):
+        masks.append(
+                _bbox_to_mask(
+                    b.data,
+                    (toscalar(rows), toscalar(cols)),
+                    output_size)
+                )
 
     masks = T.stack(masks, 0)
     return masks.view(*leading_shape, *output_size)
@@ -158,3 +174,12 @@ def bbox_to_mask(bbox, region_size, output_size):
 def addbox(ax, b, ec):
     ax.add_patch(PA.Rectangle((b[0] - b[2] / 2, b[1] - b[3] / 2), b[2], b[3],
                  ec=ec, fill=False, lw=1))
+
+
+def conv_output_size(input_size, kernel_size, padding_size, stride):
+    input_size = np.array(input_size)
+    padding_size = np.array(padding_size)
+    kernel_size = np.array(kernel_size)
+    stride = np.array(stride)
+    output_size = (input_size + 2 * padding_size - kernel_size) // stride + 1
+    return output_size.tolist()

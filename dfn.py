@@ -1,4 +1,10 @@
 
+import torch as T
+from torch import nn
+import torch.nn.functional as F
+import numpy as np
+from functools import partial
+
 class DynamicConvFilter(nn.Module):
     '''
     generator: Filter generator module to generate filter weights
@@ -102,7 +108,8 @@ class DynamicConvFilterGenerator(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
-        output_size = in_channels * out_channels * np.prod(kernel_size)
+        kernel_flatsize = np.asscalar(np.prod(kernel_size))
+        output_size = in_channels * out_channels * kernel_flatsize
 
         self.affines_w = nn.ModuleList()
         for i in range(num_layers):
@@ -111,13 +118,12 @@ class DynamicConvFilterGenerator(nn.Module):
                         input_size if i == 0 else output_size, output_size
                         )
                     )
-            input_size = output_size
         if bias:
             self.affines_b = nn.ModuleList()
             for i in range(num_layers):
                 self.affines_b.append(
                         nn.Linear(
-                            input_size if i == 0 else output_size, output_size
+                            input_size if i == 0 else out_channels, out_channels
                             )
                         )
 

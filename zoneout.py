@@ -2,6 +2,7 @@
 import torch as T
 from torch import nn
 import torch.nn.functional as F
+from util import *
 
 
 def zoneout(x_old, x_new, p=0.5, training=True):
@@ -40,22 +41,25 @@ class ZoneoutLSTMCell(nn.Module):
     p: drop probability
     '''
     def __init__(self, input_size, hidden_size, bias=True, p=0.5):
+        nn.Module.__init__(self)
         self.p = p
-        self.W_gates = nn.Parameter(input_size + hidden_size, 4 * hidden_size)
+        self.W_gates = nn.Parameter(
+                T.randn(input_size + hidden_size, 4 * hidden_size) * 0.1)
+        self._hidden_size = hidden_size
         if bias:
-            self.b_gates = nn.Parameter(4 * hidden_size)
+            self.b_gates = nn.Parameter(T.zeros(4 * hidden_size))
 
     def forward(self, x, state):
         batch_size = x.size()[0]
         h_, c_, o_ = state
-        xh = T.cat([input, x], 1)
+        xh = T.cat([h_, x], 1)
         ifog = xh @ self.W_gates + self.b_gates.unsqueeze(0)
-        ifog = ifog.view(batch_size, 4, hidden_size)
-        i, f, o = F.sigmoid(ifog[:, :3]).unbind(1)
+        ifog = ifog.view(batch_size, 4, self._hidden_size)
+        i, f, o = T.unbind(F.sigmoid(ifog[:, :3]), 1)
         g = ifog[:, 3].tanh()
 
         if self.training:
-            d = i.data.new()
+            d = i.data.new(i.size())
             d.bernoulli_(1 - self.p)
             d = T.autograd.Variable(d.float())
 
@@ -69,7 +73,7 @@ class ZoneoutLSTMCell(nn.Module):
 
     def zero_state(self, batch_size):
         return (
-                tovar(T.zeros(batch_size, self.hidden_size)),
-                tovar(T.zeros(batch_size, self.hidden_size)),
-                tovar(T.ones(batch_size, self.hidden_size)),
+                tovar(T.zeros(batch_size, self._hidden_size)),
+                tovar(T.zeros(batch_size, self._hidden_size)),
+                tovar(T.ones(batch_size, self._hidden_size)),
                 )
