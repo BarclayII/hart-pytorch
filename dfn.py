@@ -61,18 +61,12 @@ class DynamicConvFilter(nn.Module):
         self.f = partial(_conv, conv=conv, conv_transpose=conv_transpose,
                          transposed=transposed)
 
-    def forward(self, x, h, g):
+    def forward(self, x, w, b):
         '''
         x: (batch_size, nchannels, ...)
-        h: anything passed into g()
-        g: a callable
+        w: filters from DynamicConvFilterGenerator
+        b: bias from DynamicConvFilterGenerator or None
         '''
-        if self.bias:
-            w, b = g(h)
-        else:
-            w = g(h)
-            b = None
-
         x_shape = list(x.size())
         batch_size, nchannels = x_shape[0:2]
         x_trailing_shape = x_shape[2:]

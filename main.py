@@ -61,7 +61,7 @@ al = cuda(adaptive_loss.AdaptiveLoss(weights=weights))
 
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
 named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
-opt = T.optim.Adam(params, lr=1e-4)
+opt = T.optim.RMSprop(params, lr=3e-5)
 
 epoch = 0
 
@@ -82,8 +82,8 @@ while True:
         presences = tovar(
                 get_presence(args.batchsize, args.seqlen, n_glims, lengths))
 
-        bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, pres = \
-                tracker(images, bboxes[:, 0], presences[:, 0])
+        bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, \
+                pres, dfn_l2 = tracker(images, bboxes[:, 0], presences[:, 0])
 
         bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe, iou_mean = \
                 tracker.losses(
@@ -102,6 +102,7 @@ while True:
 
         if args.l2reg:
             l2reg = sum(T.norm(p) ** 2 for p in tracker.parameters())
+            l2reg += dfn_l2
             loss += args.l2reg * l2reg
 
         opt.zero_grad()
