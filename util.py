@@ -49,6 +49,16 @@ def check_bbox_validness(b):
     assert np.all(tonumpy(b[..., 3]) >= 0)
 
 
+def clamp_bbox(b):
+    '''
+    clamp the width and height to be non-negative while preserving the gradients
+    '''
+    bx, by, bw, bh = T.unbind(b, -1)
+    bw = bw - bw.clamp(max=0).detach()
+    bh = bh - bh.clamp(max=0).detach()
+    return T.stack([bx, by, bw, bh], -1)
+
+
 def intersection(a, b):
     check_bbox_validness(a)
     check_bbox_validness(b)

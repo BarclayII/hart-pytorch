@@ -62,7 +62,7 @@ class HART(nn.Module):
         bbox_scaler = tovar(T.Tensor([ncols, nrows, ncols, nrows]))
         bbox_delta_scaled = bbox_delta_scaled * bbox_scaler
 
-        bbox = bbox_delta_scaled + bbox_from_att_nobias
+        bbox = clamp_bbox(bbox_delta_scaled + bbox_from_att_nobias)
 
         check_bbox_validness(bbox)
         check_bbox_validness(bbox_from_att)

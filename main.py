@@ -58,51 +58,67 @@ tracker = cuda(hart.HART(cell))
 al = cuda(adaptive_loss.AdaptiveLoss(4))
 
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
-named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
+named_params = dict(sum([list(m.named_parameters()) for m in [tracker, al]], []))
 opt = T.optim.Adam(params, lr=1e-4)
-itr = 0
 
-for train_item, valid_item in zip(train_dataloader, valid_dataloader):
+epoch = 0
+
+while True:
+    epoch += 1
+
+    itr = 0
+
     tracker.train()
     al.train()
-    itr += 1
 
-    _images, _bboxes, _lengths = train_item
-    images, bboxes, lengths = tovar(_images, _bboxes, _lengths)
-    bboxes = bboxes.unsqueeze(2).expand(args.batchsize, args.seqlen, n_glims, 4)
-    presences = tovar(
-            get_presence(args.batchsize, args.seqlen, n_glims, lengths))
+    for train_item in train_dataloader:
+        itr += 1
 
-    bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, pres = \
-            tracker(images, bboxes[:, 0], presences[:, 0])
+        _images, _bboxes, _lengths = train_item
+        images, bboxes, lengths = tovar(_images, _bboxes, _lengths)
+        bboxes = bboxes.unsqueeze(2).expand(args.batchsize, args.seqlen, n_glims, 4)
+        presences = tovar(
+                get_presence(args.batchsize, args.seqlen, n_glims, lengths))
 
-    bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe = \
-            tracker.losses(
-                    bbox_pred,
-                    bbox_from_att,
-                    bboxes,
-                    pres,
-                    presences,
-                    mask_logits,
-                    image_size[0],
-                    image_size[1],
-                    )
+        bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, pres = \
+                tracker(images, bboxes[:, 0], presences[:, 0])
 
-    loss = al(bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe)
+        bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe = \
+                tracker.losses(
+                        bbox_pred,
+                        bbox_from_att,
+                        bboxes,
+                        pres,
+                        presences,
+                        mask_logits,
+                        image_size[0],
+                        image_size[1],
+                        )
 
-    opt.zero_grad()
-    loss.backward()
-    opt.step()
+        loss = al(bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe)
+
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+
+        print('TRAIN', epoch, toscalar(loss))
 
     tracker.eval()
+    avg_iou = 0
 
-    _images, _bboxes, _lengths = valid_item
-    images, bboxes, lengths = tovar(_images, _bboxes, _lengths, volatile=True)
-    seqlen = images.size()[1]
-    bboxes = bboxes.unsqueeze(2).expand(1, seqlen, n_glims, 4)
-    presences = tovar(
-            get_presence(1, seqlen, n_glims, lengths))
+    for valid_item in valid_dataloader:
+        _images, _bboxes, _lengths = valid_item
+        images, bboxes, lengths = tovar(_images, _bboxes, _lengths, volatile=True)
+        seqlen = images.size()[1]
+        bboxes = bboxes.unsqueeze(2).expand(1, seqlen, n_glims, 4)
+        presences = tovar(
+                get_presence(1, seqlen, n_glims, lengths))
 
-    bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, pres = \
-            tracker(images, bboxes[:, 0], presences[:, 0])
-    print(toscalar(loss), toscalar(iou(bbox_pred, bboxes).mean()))
+        bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, pres = \
+                tracker(images, bboxes[:, 0], presences[:, 0])
+
+        current_iou = toscalar(iou(bbox_pred, bboxes).mean())
+        print('VALID', epoch, current_iou)
+
+        avg_iou += current_iou
+    print('VALID-AVG', epoch, avg_iou / len(valid_dataset))
