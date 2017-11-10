@@ -88,6 +88,9 @@ class HART(nn.Module):
                img_cols,
                lambda_xe=0.):
         bbox_loss = iou_loss(bbox, bbox_target, presences_target)
+        masked_iou = iou(bbox, bbox_target) * presences_target
+        iou_mean = masked_iou.sum() / presences_target.sum()
+
         att_intersection_loss = intersection_loss(
                 bbox_from_att, bbox_target, presences_target)
         att_area_loss = area_loss(
@@ -120,4 +123,5 @@ class HART(nn.Module):
                 att_intersection_loss,
                 att_area_loss,
                 obj_mask_xe,
+                iou_mean,
                 )

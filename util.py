@@ -124,6 +124,24 @@ def iou_loss(a, b, presence):
     return masked_nll(i, presence)
 
 
+def anynan(x):
+    return (x.data != x.data).long().sum() > 0
+
+
+def anybig(x):
+    return (x.data.abs() > 1e+5).long().sum() > 0
+
+
+def check_grads(named_params):
+    for n, p in named_params:
+        if p.grad is not None:
+            try:
+                assert not anynan(p.grad) or anybig(p.grad)
+            except AssertionError:
+                print(n, 'has NaN or big gradient')
+                raise
+
+
 def intersection_loss(pred, target, presence):
     area = target[..., 2] * target[..., 3]
     i = intersection(pred, target)

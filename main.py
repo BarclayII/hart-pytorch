@@ -26,6 +26,7 @@ parser.add_argument('--seqlen', type=int, default=30)
 parser.add_argument('--num-workers', type=int, default=0)
 parser.add_argument('--statesize', type=int, default=128)
 parser.add_argument('--n-dfn-channels', type=int, default=10)
+parser.add_argument('--l2reg', type=float, default=1e-4)
 
 args = parser.parse_args()
 
@@ -55,10 +56,11 @@ cell = cuda(attention.AttentionCell(
         n_glims=n_glims,
         n_dfn_channels=args.n_dfn_channels))
 tracker = cuda(hart.HART(cell))
-al = cuda(adaptive_loss.AdaptiveLoss(4))
+weights = [1, 1, 1, 1]
+al = cuda(adaptive_loss.AdaptiveLoss(weights=weights))
 
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
-named_params = dict(sum([list(m.named_parameters()) for m in [tracker, al]], []))
+named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
 opt = T.optim.Adam(params, lr=1e-4)
 
 epoch = 0
@@ -83,7 +85,7 @@ while True:
         bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, pres = \
                 tracker(images, bboxes[:, 0], presences[:, 0])
 
-        bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe = \
+        bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe, iou_mean = \
                 tracker.losses(
                         bbox_pred,
                         bbox_from_att,
@@ -95,13 +97,19 @@ while True:
                         image_size[1],
                         )
 
-        loss = al(bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe)
+        losses = [bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe]
+        loss = al(*losses)
+
+        if args.l2reg:
+            l2reg = sum(T.norm(p) ** 2 for p in tracker.parameters())
+            loss += args.l2reg * l2reg
 
         opt.zero_grad()
         loss.backward()
+        check_grads(named_params)
         opt.step()
 
-        print('TRAIN', epoch, toscalar(loss))
+        print('TRAIN', epoch, toscalar(loss), toscalar(iou_mean))
 
     tracker.eval()
     avg_iou = 0
