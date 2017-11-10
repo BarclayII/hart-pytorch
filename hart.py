@@ -64,6 +64,10 @@ class HART(nn.Module):
 
         bbox = bbox_delta_scaled + bbox_from_att_nobias
 
+        check_bbox_validness(bbox)
+        check_bbox_validness(bbox_from_att)
+        check_bbox_validness(bbox_from_att_nobias)
+
         return (
                 bbox[:, :-1],
                 atts[:, :-1],

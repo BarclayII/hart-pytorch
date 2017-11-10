@@ -60,10 +60,12 @@ al = cuda(adaptive_loss.AdaptiveLoss(4))
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
 named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
 opt = T.optim.Adam(params, lr=1e-4)
+itr = 0
 
 for train_item, valid_item in zip(train_dataloader, valid_dataloader):
     tracker.train()
     al.train()
+    itr += 1
 
     _images, _bboxes, _lengths = train_item
     images, bboxes, lengths = tovar(_images, _bboxes, _lengths)

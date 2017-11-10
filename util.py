@@ -44,11 +44,14 @@ def normalize_contrast(x):
     return (x - min_x) / (max_x - min_x + 1e-5)
 
 
-def intersection(a, b):
-    assert np.all(tonumpy(a[..., 2]) >= 0)
-    assert np.all(tonumpy(a[..., 3]) >= 0)
+def check_bbox_validness(b):
     assert np.all(tonumpy(b[..., 2]) >= 0)
     assert np.all(tonumpy(b[..., 3]) >= 0)
+
+
+def intersection(a, b):
+    check_bbox_validness(a)
+    check_bbox_validness(b)
 
     x1 = T.max(a[..., 0], b[..., 0])
     y1 = T.max(a[..., 1], b[..., 1])
@@ -60,10 +63,8 @@ def intersection(a, b):
 
 
 def intersection_within(bbox, within):
-    assert np.all(tonumpy(bbox[..., 2]) >= 0)
-    assert np.all(tonumpy(bbox[..., 3]) >= 0)
-    assert np.all(tonumpy(within[..., 2]) >= 0)
-    assert np.all(tonumpy(within[..., 3]) >= 0)
+    check_bbox_validness(bbox)
+    check_bbox_validness(within)
 
     x1 = T.max(bbox[..., 0], within[..., 0])
     y1 = T.max(bbox[..., 1], within[..., 1])
@@ -149,7 +150,7 @@ def _bbox_to_mask(yy, region_size, output_size):
 
     # to avoid empty slicing I clamp the region size to a minimum of 1
     mask = tonumpy(
-            padded[:min(int(region_size[0]), 1), :min(int(region_size[1]), 1)])
+            padded[:max(int(region_size[0]), 1), :max(int(region_size[1]), 1)])
     resized_mask = tovar(scipy.misc.imresize(mask, output_size) / 255.)
     return resized_mask
 
