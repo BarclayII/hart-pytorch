@@ -91,11 +91,13 @@ class KTHDataset(Dataset):
         key = self._keys[key_index]
         dir_ = os.path.join(self._dir, key_to_subdir(key))
 
-        images = []
-        bboxes = []
-
         start = (key_offset if self._seqlen is not None else 0) + key.start
         end = (start + self._seqlen - 1) if self._seqlen is not None else key.end
+        seqlen = end - start + 1
+
+        images = np.zeros((seqlen, 3, self._rows, self._cols))
+        bboxes = np.zeros((seqlen, 4))
+
         for bbox_idx, i in enumerate(range(start, end + 1)):
             filename = os.path.join(dir_, 'frame_%d.jpg' % i)
             bgr = cv2.imread(filename, cv2.IMREAD_COLOR)
@@ -106,7 +108,7 @@ class KTHDataset(Dataset):
                 rgb = torch_normalize_image(rgb)
             rgb = rgb.transpose(2, 0, 1)
 
-            images.append(rgb)
+            images[bbox_idx] = rgb
 
             bbox = self._bboxes[key][bbox_idx + key_offset]
             bbox[0] = bbox[0] / cols * self._cols
@@ -114,11 +116,9 @@ class KTHDataset(Dataset):
             bbox[2] = bbox[2] / cols * self._cols
             bbox[3] = bbox[3] / rows * self._rows
 
-            bboxes.append(bbox)
-        images = np.array(images)
-        bboxes = np.array(bboxes)
+            bboxes[bbox_idx] = bbox
 
-        return images, bboxes, len(images)
+        return images, bboxes, seqlen
 
 
 class KTHDataLoader(DataLoader):
