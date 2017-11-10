@@ -15,7 +15,7 @@ Then run `main.py` with Python 3.
 If you want to run with CUDA, set the environment variable `USE_CUDA=1`.
 
 The feature is not complete; TODO:
-[ ] Gradient clipping
-[x] CUDA support
-[x] Validation and Test
-[ ] Visualization (Tensorboard or Visdom; I would like to use Visdom but probably not until they have sliders)
+- [ ] Gradient clipping
+- [x] CUDA support
+- [x] Validation and Test
+- [ ] Visualization (Tensorboard or Visdom; I would like to use Visdom but probably not until they have sliders)
