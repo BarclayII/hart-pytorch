@@ -123,8 +123,8 @@ while True:
         presences = tovar(
                 get_presence(1, seqlen, n_glims, lengths))
 
-        bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, pres = \
-                tracker(images, bboxes[:, 0], presences[:, 0])
+        bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, \
+                pres, _ = tracker(images, bboxes[:, 0], presences[:, 0])
 
         current_iou = toscalar(iou(bbox_pred, bboxes).mean())
         print('VALID', epoch, current_iou)
