@@ -13,7 +13,7 @@ same place as the source code files.
 Then run `main.py` with Python 3.
 
 The feature is not complete; TODO:
-* Gradient clipping
-* CUDA support
-* Validation and Test
-* Visualization (Tensorboard or Visdom; I would like to use Visdom but probably not until they have sliders)
+[ ] Gradient clipping
+[x] CUDA support
+[x] Validation and Test
+[ ] Visualization (Tensorboard or Visdom; I would like to use Visdom but probably not until they have sliders)
