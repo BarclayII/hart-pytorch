@@ -147,7 +147,9 @@ def _bbox_to_mask(yy, region_size, output_size):
     core = core.unsqueeze(0).unsqueeze(1)
     padded = F.pad(core, padspace).squeeze(1).squeeze(0)
 
-    mask = tonumpy(padded[:int(region_size[0]), :int(region_size[1])])
+    # to avoid empty slicing I clamp the region size to a minimum of 1
+    mask = tonumpy(
+            padded[:min(int(region_size[0]), 1), :min(int(region_size[1]), 1)])
     resized_mask = tovar(scipy.misc.imresize(mask, output_size) / 255.)
     return resized_mask
 

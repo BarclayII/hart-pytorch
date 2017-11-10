@@ -12,6 +12,8 @@ same place as the source code files.
 
 Then run `main.py` with Python 3.
 
+If you want to run with CUDA, set the environment variable `USE_CUDA=1`.
+
 The feature is not complete; TODO:
 [ ] Gradient clipping
 [x] CUDA support
