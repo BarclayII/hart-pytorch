@@ -163,19 +163,23 @@ while True:
                 original_img = tonumpy(_images[0, t].permute(1, 2, 0))
                 original_img = torch_unnormalize_image(original_img)
                 ax[0, 0].imshow(original_img)
+                ax[0, 0].set_title('Original image + bbox/prediction')
                 addbox(ax[0, 0], tonumpy(bboxes[0, t, 0]), 'red')
                 addbox(ax[0, 0], tonumpy(bbox_pred[0, t, 0]), 'yellow')
                 # (0, 1): Spatial attention
                 raw_glim_img = tonumpy(raw_glims[0, t, 0].permute(1, 2, 0))
                 raw_glim_img = torch_unnormalize_image(raw_glim_img)
+                ax[0, 1].set_title('Spatial attention glimpse')
                 ax[0, 1].imshow(raw_glim_img)
                 # (1, 0): Attention mask
                 mask = tonumpy(F.sigmoid(mask_logits[0, t, 0]))
+                ax[1, 0].set_title('Appearance mask')
                 ax[1, 0].matshow(mask, cmap='gray')
                 resized_mask = cv2.resize(mask, (glim_size[1], glim_size[0]))
                 resized_mask = np.expand_dims(resized_mask, 2)
                 # (1, 1): Masked attended image
                 attended_glim_img = raw_glim_img * resized_mask
+                ax[1, 1].set_title('Masked glimpse')
                 ax[1, 1].imshow(attended_glim_img)
 
                 wm.append_mpl_figure_to_sequence(name, fig)
