@@ -112,10 +112,12 @@ class HART(nn.Module):
         neg = (1 - target_obj_mask).sum(4, keepdim=True).sum(3, keepdim=True)
         frac_pos = pos / (pos + neg)
         frac_neg = 1 - frac_pos
-        weight = target_obj_mask * frac_pos + (1 - target_obj_mask) * frac_neg
+        weight = ((target_obj_mask != 0).float() * frac_pos +
+                  (target_obj_mask == 0).float() * frac_neg)
+        weight = (weight == 0).float() + weight
+        weight = 1. / weight
 
         weight = weight * presences_target[:, :, :, np.newaxis, np.newaxis]
-        weight = weight / presences_target.sum()
 
         obj_mask_xe = F.binary_cross_entropy_with_logits(
                 mask_logits, target_obj_mask, weight)
