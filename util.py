@@ -145,7 +145,7 @@ def check_grads(named_params):
 def intersection_loss(pred, target, presence):
     area = target[..., 2] * target[..., 3]
     i = intersection(pred, target)
-    i = i / (area + (area == 0).float())
+    i = i / (area * (area != 0).float() + (area == 0).float())
     return masked_nll(i, presence)
 
 

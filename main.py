@@ -112,6 +112,9 @@ while True:
 
         print('TRAIN', epoch, toscalar(loss), toscalar(iou_mean))
 
+    print(tonumpy(bboxes))
+    print(tonumpy(bbox_pred))
+
     tracker.eval()
     avg_iou = 0
 
@@ -131,3 +134,5 @@ while True:
 
         avg_iou += current_iou
     print('VALID-AVG', epoch, avg_iou / len(valid_dataset))
+    print(tonumpy(bboxes))
+    print(tonumpy(bbox_pred))
