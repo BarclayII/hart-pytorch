@@ -214,3 +214,14 @@ def conv_output_size(input_size, kernel_size, padding_size, stride):
     stride = np.array(stride)
     output_size = (input_size + 2 * padding_size - kernel_size) // stride + 1
     return output_size.tolist()
+
+def torch_normalize_image(x):
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    return (x - mean) / std
+
+def torch_unnormalize_image(x):
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    return x * std + mean
+

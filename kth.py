@@ -4,6 +4,7 @@ import os
 from collections import namedtuple, OrderedDict
 import numpy as np
 import cv2
+from util import *
 
 DatasetKey = namedtuple('DatasetKey', ['person', 'scenario', 'action', 'start', 'end'])
 
@@ -19,16 +20,6 @@ actions = {
 def key_to_subdir(key):
     return 'person%02d_%s_d%1d' % (
             key.person, actions[key.action], key.scenario)
-
-def torch_normalize_image(x):
-    mean = (0.485, 0.456, 0.406)
-    std = (0.229, 0.224, 0.225)
-    return (x - mean) / std
-
-def torch_unnormalize_image(x):
-    mean = (0.485, 0.456, 0.406)
-    std = (0.229, 0.224, 0.225)
-    return x * std + mean
 
 class KTHDataset(Dataset):
     def __init__(self,
@@ -122,10 +113,10 @@ class KTHDataset(Dataset):
 
 
 class KTHDataLoader(DataLoader):
-    def __init__(self, dataset, batch_size, num_workers=0):
+    def __init__(self, dataset, batch_size, num_workers=0, shuffle=True):
         DataLoader.__init__(self,
                             dataset,
                             batch_size,
                             num_workers=num_workers,
-                            shuffle=True,
+                            shuffle=shuffle,
                             drop_last=True)

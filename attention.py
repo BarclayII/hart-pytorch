@@ -245,7 +245,7 @@ class AttentionCell(nn.Module):
         att = self.attender.bbox_to_att(bbox)
         rnn_state = self.rnncell.zero_state(batch_size)
 
-        _, feats, _, _ = self.extract_features(x, att, None)
+        _, feats, _, _, _ = self.extract_features(x, att, None)
         rnn_output, rnn_state = self.rnncell(feats, rnn_state)
 
         att += self.att_bias.view(1, 1, -1)
@@ -268,9 +268,10 @@ class AttentionCell(nn.Module):
         mask_logit: 3D or None (if appearance is None)
             (batch_size, n_glims, raw_feat_rows, raw_feat_cols)
         dfn_norm: L2 norm of generated DFN parameters
+        prenorm_glims: as @glims, but not contrast-normalized (for viz)
         '''
         # (batch_size, n_glims, nchannels, n_glim_rows, n_glim_cols)
-        glims = self.attender(x, spatial_att)
+        prenorm_glims = glims = self.attender(x, spatial_att)
         batch_size, n_glims, nchannels, n_glim_rows, n_glim_cols = glims.size()
 
         if self.normalize_glimpse:
@@ -314,7 +315,7 @@ class AttentionCell(nn.Module):
                     ], 1)
                 )
 
-        return glims, projected_feats, mask_logit, dfn_l2
+        return glims, projected_feats, mask_logit, dfn_l2, prenorm_glims
 
 
     def forward(self,
@@ -343,7 +344,7 @@ class AttentionCell(nn.Module):
         '''
         batch_size = x.size()[0]
 
-        glims, feats, mask_logit, dfn_l2 = self.extract_features(
+        glims, feats, mask_logit, dfn_l2, raw_glims = self.extract_features(
                 x, spatial_att, appearance)
 
         rnn_output, next_state = self.rnncell(feats, hidden_state)
@@ -376,5 +377,6 @@ class AttentionCell(nn.Module):
                 glims,
                 mask_logit,
                 mask_feats,
-                dfn_l2
+                dfn_l2,
+                raw_glims,
                 )

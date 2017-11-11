@@ -44,7 +44,7 @@ class HART(nn.Module):
         _outputs = outputs
         # atts, apps: the attention/appearance features for next frame
         atts, apps, presence_logits, outputs, glims, mask_logits, mask_feats, \
-                dfn_l2s = [T.stack(o, 1) for o in zip(*outputs)]
+                dfn_l2s, raw_glims = [T.stack(o, 1) for o in zip(*outputs)]
 
         bbox_delta = self.bbox_predictor(outputs.view(batch_size * nframes, -1))
         bbox_delta = bbox_delta.view(
@@ -76,6 +76,7 @@ class HART(nn.Module):
                 bbox_from_att_nobias[:, :-1],
                 presence_logits,
                 dfn_l2s.mean(),
+                raw_glims,
                 )
 
     def losses(self,

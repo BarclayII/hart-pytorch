@@ -1,0 +1,13 @@
+diff --git a/py/__init__.py b/py/__init__.py
+index 453b44e..aaf182d 100644
+--- a/py/__init__.py
++++ b/py/__init__.py
+@@ -492,7 +492,7 @@ class Visdom(object):
+                 videofile,
+                 fourcc,
+                 opts.get('fps'),
+-                (tensor.shape[1], tensor.shape[2])
++                (tensor.shape[2], tensor.shape[1])
+             )
+             assert writer.isOpened(), 'video writer could not be opened'
+             for i in range(tensor.shape[0]):
