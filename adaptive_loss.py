@@ -23,7 +23,7 @@ class AdaptiveLoss(nn.Module):
         return x.sqrt()
 
     def forward(self, *losses):
-        total_loss = sum(self.transform(l) * loss
-                         for l, loss in zip(self.lambdas, losses))
-        reg = sum(l for l in self.lambdas)
+        lambdas = [self.transform(l) for l in self.lambdas]
+        total_loss = sum(l * loss for l, loss in zip(lambdas, losses))
+        reg = sum(l for l in lambdas)
         return total_loss + reg

@@ -23,6 +23,10 @@ def get_presence(batch_size, seqlen, n_glims, lengths):
     return presences
 
 
+def update_learning_rate(opt, lr):
+    opt.param_groups[0]['lr'] = lr
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchsize', type=int, default=8)
 parser.add_argument('--seqlen', type=int, default=30)
@@ -32,6 +36,7 @@ parser.add_argument('--n-dfn-channels', type=int, default=10)
 parser.add_argument('--l2reg', type=float, default=1e-4)
 parser.add_argument('--n-viz', type=int, default=1)
 parser.add_argument('--gradclip', type=float, default=1)
+parser.add_argument('--lr', type=float, default=0.1)
 
 args = parser.parse_args()
 
@@ -66,7 +71,7 @@ al = cuda(adaptive_loss.AdaptiveLoss(weights=weights))
 
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
 named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
-opt = T.optim.RMSprop(params, lr=3e-5)
+opt = T.optim.SGD(params, lr=args.lr)
 
 epoch = 0
 
@@ -211,3 +216,6 @@ while True:
     wm.append_scalar('Average IOU (validation)', avg_iou)
     print(tonumpy(bboxes))
     print(tonumpy(bbox_pred))
+
+    lr /= 2
+    update_learning_rate(opt, lr)
