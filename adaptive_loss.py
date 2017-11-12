@@ -9,15 +9,21 @@ class AdaptiveLoss(nn.Module):
         self.lambdas = nn.ParameterList()
         if weights is not None:
             for w in weights:
-                p = nn.Parameter(T.Tensor([w]).log())
+                p = nn.Parameter(self.invtransform(T.Tensor([w])))
                 self.lambdas.append(p)
         else:
             for i in range(n_losses):
-                p = nn.Parameter(T.Tensor([0]))
+                p = nn.Parameter(self.invtransform(T.Tensor([1])))
                 self.lambdas.append(p)
 
+    def transform(self, x):
+        return x ** 2 + 1e-8
+
+    def invtransform(self, x):
+        return x.sqrt()
+
     def forward(self, *losses):
-        total_loss = sum(l.exp() * loss
+        total_loss = sum(self.transform(l) * loss
                          for l, loss in zip(self.lambdas, losses))
         reg = sum(l for l in self.lambdas)
         return total_loss + reg

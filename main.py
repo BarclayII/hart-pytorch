@@ -129,7 +129,17 @@ while True:
         wm.append_scalar('mask cross entropy', toscalar(obj_mask_xe))
         wm.append_scalar('overall loss', toscalar(loss))
         wm.append_scalar('average IOU (train)', toscalar(iou_mean))
-        wm.append_scalar('lambda', [np.exp(toscalar(l)) for l in al.lambdas])
+        wm.append_scalar('lambda',
+                         [toscalar(al.transform(l)) for l in al.lambdas],
+                         opts=dict(
+                             legend=[
+                                 'bbox',
+                                 'att-intersection',
+                                 'att-area',
+                                 'mask-cross-entropy',
+                                 ]
+                             )
+                         )
 
     print(tonumpy(bboxes))
     print(tonumpy(bbox_pred))
