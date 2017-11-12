@@ -34,7 +34,7 @@ class VisdomWindowManager(visdom.Visdom):
             # If we have at least two values, then plot a segment
             t = self.scalar_plot_length[name] if t is None else t
             prev_v, prev_t = self.scalar_plot_prev_point[name]
-            newopts = {'xlabel': 'time', 'ylabel': 'name'}
+            newopts = {'xlabel': 'time', 'ylabel': name}
             if opts is not None:
                 newopts.update(opts)
             self.line(
