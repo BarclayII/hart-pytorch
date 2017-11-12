@@ -68,10 +68,11 @@ cell = cuda(attention.AttentionCell(
 tracker = cuda(hart.HART(cell))
 weights = [1, 1, 1, 1]
 al = cuda(adaptive_loss.AdaptiveLoss(weights=weights))
+lr = args.lr
 
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
 named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
-opt = T.optim.SGD(params, lr=args.lr)
+opt = T.optim.SGD(params, lr=lr)
 
 epoch = 0
 
