@@ -108,17 +108,12 @@ class HART(nn.Module):
                 att_cols,
                 mask_logits.size()[-2:])
 
-        '''
         pos = target_obj_mask.sum(4, keepdim=True).sum(3, keepdim=True)
         neg = (1 - target_obj_mask).sum(4, keepdim=True).sum(3, keepdim=True)
         frac_pos = pos / (pos + neg)
         frac_neg = 1 - frac_pos
-        weight = ((target_obj_mask != 0).float() * frac_pos +
-                  (target_obj_mask == 0).float() * frac_neg)
-        weight = (weight == 0).float() + weight
-        weight = 1. / weight
-        '''
-        weight = 1
+        weight = ((target_obj_mask != 0).float() * frac_neg +
+                  (target_obj_mask == 0).float() * frac_pos)
 
         weight = weight * presences_target[:, :, :, np.newaxis, np.newaxis]
 
