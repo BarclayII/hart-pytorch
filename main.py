@@ -31,6 +31,7 @@ parser.add_argument('--statesize', type=int, default=128)
 parser.add_argument('--n-dfn-channels', type=int, default=10)
 parser.add_argument('--l2reg', type=float, default=1e-4)
 parser.add_argument('--n-viz', type=int, default=1)
+parser.add_argument('--gradclip', type=float, default=1)
 
 args = parser.parse_args()
 
@@ -115,6 +116,7 @@ while True:
         opt.zero_grad()
         loss.backward()
         check_grads(named_params)
+        clip_grads(named_params, args.gradclip)
         opt.step()
 
         print('TRAIN', epoch, toscalar(loss), toscalar(iou_mean))

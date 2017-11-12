@@ -142,6 +142,17 @@ def check_grads(named_params):
                 raise
 
 
+def clip_grads(named_params, max_norm):
+    grad_norm = 0
+    for n, p in named_params:
+        if p.grad is not None:
+            grad_norm = grad_norm + p.grad.data.norm() ** 2
+    grad_norm = grad_norm ** 0.5
+    for n, p in named_params:
+        if p.grad is not None:
+            p.grad.data /= grad_norm / max_norm
+
+
 def intersection_loss(pred, target, presence):
     area = target[..., 2] * target[..., 3]
     i = intersection(pred, target)

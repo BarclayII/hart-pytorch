@@ -49,7 +49,7 @@ $ patch -d <visdom-package-directory> -p2 <visdom-video.patch
 
 ### TODO
 
-- [ ] Gradient clipping
+- [x] Gradient clipping
 - [x] CUDA support
 - [x] Validation and Test
 - [x] Visualization (with Visdom, patch needed; see above)
