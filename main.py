@@ -129,6 +129,7 @@ while True:
         wm.append_scalar('mask cross entropy', toscalar(obj_mask_xe))
         wm.append_scalar('overall loss', toscalar(loss))
         wm.append_scalar('average IOU (train)', toscalar(iou_mean))
+        wm.append_scalar('lambda', [np.exp(toscalar(l)) for l in al.lambdas])
 
     print(tonumpy(bboxes))
     print(tonumpy(bbox_pred))

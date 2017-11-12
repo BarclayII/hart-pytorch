@@ -23,7 +23,7 @@ class VisdomWindowManager(visdom.Visdom):
 
         self.mpl_figure_sequence = {}
 
-    def append_scalar(self, name, value, t=None):
+    def append_scalar(self, name, value, t=None, opts=None):
         if self.scalar_plot_length.get(name, 0) == 0:
             # If we are creating a scalar plot, store the starting point but
             # don't plot anything yet
@@ -34,15 +34,15 @@ class VisdomWindowManager(visdom.Visdom):
             # If we have at least two values, then plot a segment
             t = self.scalar_plot_length[name] if t is None else t
             prev_v, prev_t = self.scalar_plot_prev_point[name]
+            newopts = {'xlabel': 'time', 'ylabel': 'name'}
+            if opts is not None:
+                newopts.update(opts)
             self.line(
                     X=np.array([prev_t, t]),
                     Y=np.array([prev_v, value]),
                     win=name,
                     update=None if not self.win_exists(name) else 'append',
-                    opts=dict(
-                        xlabel='time',
-                        ylabel=name,
-                        ),
+                    opts=newopts
                     )
 
         self.scalar_plot_prev_point[name] = (value, t)
