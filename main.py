@@ -166,6 +166,8 @@ while True:
                 ax[0, 0].set_title('Original image + bbox/prediction')
                 addbox(ax[0, 0], tonumpy(bboxes[0, t, 0]), 'red')
                 addbox(ax[0, 0], tonumpy(bbox_pred[0, t, 0]), 'yellow')
+                addbox(ax[0, 0], tonumpy(bbox_from_att[0, t, 0]), 'green')
+                addbox(ax[0, 0], tonumpy(bbox_from_att_nobias[0, t, 0]), 'cyan')
                 # (0, 1): Spatial attention
                 raw_glim_img = tonumpy(raw_glims[0, t, 0].permute(1, 2, 0))
                 raw_glim_img = torch_unnormalize_image(raw_glim_img)
@@ -173,9 +175,9 @@ while True:
                 ax[0, 1].imshow(raw_glim_img)
                 # (1, 0): Attention mask
                 mask = tonumpy(F.sigmoid(mask_logits[0, t, 0]))
-                ax[1, 0].set_title('Appearance mask')
-                ax[1, 0].matshow(mask, cmap='gray')
                 resized_mask = cv2.resize(mask, (glim_size[1], glim_size[0]))
+                ax[1, 0].set_title('Appearance mask')
+                ax[1, 0].matshow(resized_mask, cmap='gray')
                 resized_mask = np.expand_dims(resized_mask, 2)
                 # (1, 1): Masked attended image
                 attended_glim_img = raw_glim_img * resized_mask
