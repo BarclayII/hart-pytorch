@@ -48,16 +48,13 @@ class VisdomWindowManager(visdom.Visdom):
         self.scalar_plot_prev_point[name] = (value, t)
         self.scalar_plot_length[name] += 1
 
-    def display_mpl_figure(self, name, fig):
+    def display_mpl_figure(self, fig, **kwargs):
         '''
         Call this function before calling 'PL.show()' or 'PL.savefig()'.
         '''
         self.image(
                 _fig_to_ndarray(fig),
-                win=name,
-                opts=dict(
-                    caption=name,
-                    )
+                **kwargs
                 )
 
     def reset_mpl_figure_sequence(self, name):
@@ -70,7 +67,7 @@ class VisdomWindowManager(visdom.Visdom):
             self.reset_mpl_figure_sequence(name)
         self.mpl_figure_sequence[name].append(data)
 
-    def display_mpl_figure_sequence(self, name):
+    def display_mpl_figure_sequence(self, name, **kwargs):
         data_seq = self.mpl_figure_sequence[name]
         video_rows, video_cols = data_seq[0].shape[:2]
         data_seq = [cv2.resize(f, (video_cols, video_rows)) for f in data_seq]
@@ -78,8 +75,5 @@ class VisdomWindowManager(visdom.Visdom):
 
         self.video(
                 data_seq,
-                win=name,
-                opts=dict(
-                    title=name,
-                    )
+                **kwargs
                 )

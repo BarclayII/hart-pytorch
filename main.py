@@ -186,10 +186,14 @@ while True:
 
                 wm.append_mpl_figure_to_sequence(name, fig)
 
-            wm.display_mpl_figure_sequence(name)
+            wm.display_mpl_figure_sequence(
+                    name,
+                    win=name,
+                    opts=dict(title=name, fps=10),
+                    )
 
     avg_iou = avg_iou / len(valid_dataset)
-    print('VALID-AVG', epoch, avg_iou / len(valid_dataset))
+    print('VALID-AVG', epoch, avg_iou)
 
     wm.append_scalar('Average IOU (validation)', avg_iou)
     print(tonumpy(bboxes))
