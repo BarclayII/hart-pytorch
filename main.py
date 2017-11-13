@@ -37,6 +37,7 @@ parser.add_argument('--l2reg', type=float, default=1e-4)
 parser.add_argument('--n-viz', type=int, default=1)
 parser.add_argument('--gradclip', type=float, default=1)
 parser.add_argument('--lr', type=float, default=0.1)
+parser.add_argument('--zoneout', type=float, default=0.05)
 
 args = parser.parse_args()
 
@@ -62,7 +63,7 @@ cell = cuda(attention.AttentionCell(
         args.statesize,
         feature_extractor,
         attender,
-        0.5,
+        args.zoneout,
         n_glims=n_glims,
         n_dfn_channels=args.n_dfn_channels))
 tracker = cuda(hart.HART(cell))
