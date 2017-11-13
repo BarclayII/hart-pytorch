@@ -66,7 +66,7 @@ cell = cuda(attention.AttentionCell(
         n_glims=n_glims,
         n_dfn_channels=args.n_dfn_channels))
 tracker = cuda(hart.HART(cell))
-weights = [1, 1, 1, 1]
+weights = [1, 1, 1]
 al = cuda(adaptive_loss.AdaptiveLoss(weights=weights))
 lr = args.lr
 
@@ -110,8 +110,9 @@ while True:
                         image_size[0],
                         image_size[1],
                         )
+        att_loss = att_intersection_loss + att_area_loss
 
-        losses = [bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe]
+        losses = [bbox_loss, att_loss, obj_mask_xe]
         loss = al(*losses)
 
         if args.l2reg:
@@ -129,9 +130,7 @@ while True:
 
         # Visualizations
         wm.append_scalar('bbox IOU loss', toscalar(bbox_loss))
-        wm.append_scalar(
-                'attention intersection loss', toscalar(att_intersection_loss))
-        wm.append_scalar('attention area loss', toscalar(att_area_loss))
+        wm.append_scalar('attention loss', toscalar(att_loss))
         wm.append_scalar('mask cross entropy', toscalar(obj_mask_xe))
         wm.append_scalar('overall loss', toscalar(loss))
         wm.append_scalar('average IOU (train)', toscalar(iou_mean))
@@ -140,8 +139,7 @@ while True:
                          opts=dict(
                              legend=[
                                  'bbox',
-                                 'att-intersection',
-                                 'att-area',
+                                 'attention-loss',
                                  'mask-cross-entropy',
                                  ]
                              )
