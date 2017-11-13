@@ -37,7 +37,10 @@ parser.add_argument('--l2reg', type=float, default=1e-4)
 parser.add_argument('--n-viz', type=int, default=1)
 parser.add_argument('--gradclip', type=float, default=1)
 parser.add_argument('--lr', type=float, default=0.1)
+parser.add_argument('--lr-scale-ratio', type=float, default=1.2)
+parser.add_argument('--lr-min', type=float, default=1e-5)
 parser.add_argument('--zoneout', type=float, default=0.05)
+parser.add_argument('--opt', type=str, default='SGD')
 
 args = parser.parse_args()
 
@@ -73,7 +76,7 @@ lr = args.lr
 
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
 named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
-opt = T.optim.SGD(params, lr=lr)
+opt = getattr(T.optim, args.opt)(params, lr=lr)
 
 epoch = 0
 
@@ -217,5 +220,6 @@ while True:
     print(tonumpy(bboxes))
     print(tonumpy(bbox_pred))
 
-    lr /= 2
+    lr /= args.lr_scale_ratio
+    lr = max(lr, args.lr_min)
     update_learning_rate(opt, lr)
