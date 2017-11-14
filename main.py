@@ -51,11 +51,11 @@ n_glims = 2     # DEBUG
 train_dataset = kth.KTHDataset(
         'frames', 'KTHBoundingBoxInfoTrain.txt', seqlen=args.seqlen)
 valid_dataset = kth.KTHDataset(
-        'frames', 'KTHBoundingBoxInfoValidation.txt', seqlen=None)
+        'frames', 'KTHBoundingBoxInfoValidation.txt', seqlen=args.seqlen)
 train_dataloader = kth.KTHDataLoader(
         train_dataset, args.batchsize, num_workers=args.num_workers)
 valid_dataloader = kth.KTHDataLoader(
-        valid_dataset, 1, num_workers=args.num_workers, shuffle=False)
+        valid_dataset, args.batchsize, num_workers=args.num_workers, shuffle=False)
 
 feature_extractor = cuda(alexnet.AlexNetModel(n_out_feature_maps=args.n_dfn_channels))
 attender = cuda(attention.RATMAttention(image_size, glim_size))

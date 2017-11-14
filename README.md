@@ -47,6 +47,14 @@ and run
 $ patch -d <visdom-package-directory> -p2 <visdom-video.patch
 ```
 
+### Result so far
+
+Seems that the training process is very unstable with RMSprop.  It either got comparably good results very soon or
+got completely thrown off.
+
+Also when I say "good", I only got at most 45% IOU on KTH validation set.  I indeed got 75% on training set though.
+I split the dataset into 1793, 300, 294 sequences for training, validation and test respectively.
+
 ### TODO
 
 - [x] Gradient clipping
