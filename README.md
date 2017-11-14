@@ -60,6 +60,25 @@ that the bounding boxes are given by a detector, which is noisy and often fail h
 
 I indeed got 75% on training set though.
 
+### Code organization
+
+The key ingredients:
+
+* `main.py`: Entry program
+* `hart.py`: Recurrent tracker itself, without the attention cell, and its loss functions
+* `attention.py`: Attention module
+  * Note that I didn't use their fixed-scale attention; the scale parameter of the attention is predicted.
+
+Some miscellaneous modules:
+
+* `adaptive_loss.py`: Adaptive loss module, which automatically balances multi-task losses
+* `alexnet.py`: AlexNet(-ish) feature extractor
+* `dfn.py`: Dynamic Convolutional Filter and its weight generator module
+* `kth.py`: KTH Dataset
+* `viz.py`: Visdom helper class for drawing matplotlib figures & time series
+* `zoneout.py`: Zoneout implementations, including a variation of Zoneout-LSTM
+* `util.py`: Things I don't know where to put
+
 ### TODO
 
 - [x] Gradient clipping
@@ -67,3 +86,5 @@ I indeed got 75% on training set though.
 - [x] Validation and Test
 - [x] Visualization (with Visdom, patch needed; see above)
 - [x] L2 Regularization (patch needed; see above)
+- [ ] ImageNet VID challenge
+- [ ] KITTI

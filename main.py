@@ -15,6 +15,16 @@ from util import *
 
 
 def get_presence(batch_size, seqlen, n_glims, lengths):
+    '''
+    Generates a weight tensor indicating whether the object indeed exists.
+    In our setting where we always track one single object, the weight is
+    1 if the object exists, and 0 otherwise.  Since the object always
+    exists in a given sequence, we simply set all the weights beyond the
+    sequence length to 0.
+
+    In the case of multi-object tracking & detection, the weight tensor
+    should come from the dataset.
+    '''
     presences = cuda(T.ones(batch_size, seqlen, n_glims))
     for i in range(batch_size):
         if lengths.data[i] >= seqlen:
@@ -27,6 +37,7 @@ def update_learning_rate(opt, lr):
     opt.param_groups[0]['lr'] = lr
 
 
+# Argument parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchsize', type=int, default=8)
 parser.add_argument('--seqlen', type=int, default=30)
@@ -51,6 +62,7 @@ n_glims = 1
 valid_batch_size = 1 if args.validate_complete_sequence else args.batchsize
 valid_seqlen = None if args.validate_complete_sequence else args.seqlen
 
+# Dataset
 train_dataset = kth.KTHDataset(
         'frames', 'KTHBoundingBoxInfoTrain.txt', seqlen=args.seqlen)
 valid_dataset = kth.KTHDataset(
@@ -60,6 +72,7 @@ train_dataloader = kth.KTHDataLoader(
 valid_dataloader = kth.KTHDataLoader(
         valid_dataset, valid_batch_size, num_workers=args.num_workers, shuffle=False)
 
+# Model
 feature_extractor = cuda(alexnet.AlexNetModel(n_out_feature_maps=args.n_dfn_channels))
 attender = cuda(attention.RATMAttention(image_size, glim_size))
 cell = cuda(attention.AttentionCell(
@@ -77,10 +90,12 @@ weights = [1, 1, 1]
 al = cuda(adaptive_loss.AdaptiveLoss(weights=weights))
 lr = args.lr
 
+# Optimizer
 params = sum([list(m.parameters()) for m in [tracker, al]], [])
 named_params = sum([list(m.named_parameters()) for m in [tracker, al]], [])
 opt = getattr(T.optim, args.opt)(params, lr=lr)
 
+# Main program
 epoch = 0
 
 wm = viz.VisdomWindowManager()
@@ -90,12 +105,14 @@ while True:
 
     itr = 0
 
+    # Training goes here...
     tracker.train()
     al.train()
 
     for train_item in train_dataloader:
         itr += 1
 
+        # bbox prediction
         _images, _bboxes, _lengths = train_item
         images, bboxes, lengths = tovar(_images, _bboxes, _lengths)
         bboxes = bboxes.unsqueeze(2).expand(args.batchsize, args.seqlen, n_glims, 4)
@@ -106,6 +123,7 @@ while True:
                 pres, dfn_l2, raw_glims = tracker(
                         images, bboxes[:, 0], presences[:, 0])
 
+        # Loss computation
         bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe, iou_mean = \
                 tracker.losses(
                         bbox_pred,
@@ -127,6 +145,7 @@ while True:
             l2reg += dfn_l2
             loss += args.l2reg * l2reg
 
+        # Step
         opt.zero_grad()
         loss.backward()
         check_grads(named_params)
@@ -155,6 +174,7 @@ while True:
     print(tonumpy(bboxes))
     print(tonumpy(bbox_pred))
 
+    # Validation goes here...
     tracker.eval()
     avg_iou = 0
 
@@ -223,6 +243,7 @@ while True:
     print(tonumpy(bboxes))
     print(tonumpy(bbox_pred))
 
+    # Schedule learning rate
     lr /= args.lr_scale_ratio
     lr = max(lr, args.lr_min)
     update_learning_rate(opt, lr)
