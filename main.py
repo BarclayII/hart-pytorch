@@ -5,7 +5,7 @@ import attention
 import alexnet
 import adaptive_loss
 import viz
-import kth
+import dataset
 import argparse
 import matplotlib.pyplot as PL
 import cv2
@@ -64,13 +64,13 @@ valid_batch_size = 1 if args.validate_complete_sequence else args.batchsize
 valid_seqlen = None if args.validate_complete_sequence else args.seqlen
 
 # Dataset
-train_dataset = kth.KTHDataset(
+train_dataset = dataset.KTHDataset(
         'frames', 'KTHBoundingBoxInfoTrain.txt', seqlen=args.seqlen)
-valid_dataset = kth.KTHDataset(
+valid_dataset = dataset.KTHDataset(
         'frames', 'KTHBoundingBoxInfoValidation.txt', seqlen=valid_seqlen)
-train_dataloader = kth.KTHDataLoader(
+train_dataloader = dataset.VideoDataLoader(
         train_dataset, args.batchsize, num_workers=args.num_workers)
-valid_dataloader = kth.KTHDataLoader(
+valid_dataloader = dataset.VideoDataLoader(
         valid_dataset, valid_batch_size, num_workers=args.num_workers, shuffle=False)
 
 # Model

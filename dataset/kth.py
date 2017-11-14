@@ -5,6 +5,7 @@ from collections import namedtuple, OrderedDict
 import numpy as np
 import cv2
 from util import *
+from .dataset import VideoDataset, resize_and_normalize
 
 DatasetKey = namedtuple('DatasetKey', ['person', 'scenario', 'action', 'start', 'end'])
 
@@ -21,7 +22,7 @@ def key_to_subdir(key):
     return 'person%02d_%s_d%1d' % (
             key.person, actions[key.action], key.scenario)
 
-class KTHDataset(Dataset):
+class KTHDataset(VideoDataset):
     def __init__(self,
                  directory,
                  bbox_info_file,
@@ -29,6 +30,7 @@ class KTHDataset(Dataset):
                  rows=120,
                  cols=160,
                  seqlen=30):
+        VideoDataset.__init__(self, normalize, rows, cols, seqlen)
         bbox_info_f = open(bbox_info_file)
         # skip first 4 lines
         for _ in range(4):
@@ -36,10 +38,6 @@ class KTHDataset(Dataset):
 
         self._dir = directory
         self._bboxes = OrderedDict()
-        self._normalize = normalize
-        self._rows = rows
-        self._cols = cols
-        self._seqlen = seqlen
 
         for line in bbox_info_f:
             person, scenario, action, seq, start, end, bboxes = \
@@ -76,6 +74,7 @@ class KTHDataset(Dataset):
     def __len__(self):
         return len(self._bboxes)
 
+    @resize_and_normalize
     def __getitem__(self, idx):
         key_index = np.searchsorted(self._index_segments, idx, side='right') - 1
         key_offset = idx - self._index_segments[key_index]
@@ -86,37 +85,16 @@ class KTHDataset(Dataset):
         end = (start + self._seqlen - 1) if self._seqlen is not None else key.end
         seqlen = end - start + 1
 
-        images = np.zeros((seqlen, 3, self._rows, self._cols))
-        bboxes = np.zeros((seqlen, 4))
+        images = []
+        bboxes = []
 
         for bbox_idx, i in enumerate(range(start, end + 1)):
             filename = os.path.join(dir_, 'frame_%d.jpg' % i)
             bgr = cv2.imread(filename, cv2.IMREAD_COLOR)
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB) / 255.
-            rgb = cv2.resize(rgb, (self._cols, self._rows))
-            rows, cols, _ = rgb.shape
-            if self._normalize:
-                rgb = torch_normalize_image(rgb)
-            rgb = rgb.transpose(2, 0, 1)
-
-            images[bbox_idx] = rgb
+            images.append(rgb)
 
             bbox = self._bboxes[key][bbox_idx + key_offset]
-            bbox[0] = bbox[0] / cols * self._cols
-            bbox[1] = bbox[1] / rows * self._rows
-            bbox[2] = bbox[2] / cols * self._cols
-            bbox[3] = bbox[3] / rows * self._rows
-
-            bboxes[bbox_idx] = bbox
+            bboxes.append(bbox)
 
         return images, bboxes, seqlen
-
-
-class KTHDataLoader(DataLoader):
-    def __init__(self, dataset, batch_size, num_workers=0, shuffle=True):
-        DataLoader.__init__(self,
-                            dataset,
-                            batch_size,
-                            num_workers=num_workers,
-                            shuffle=shuffle,
-                            drop_last=True)
