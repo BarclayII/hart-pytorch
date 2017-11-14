@@ -10,6 +10,8 @@ and unpack it to the repo directory.
 You will have `KTHBoundingBoxInfo.txt` and a directory called `frames` in the
 same place as the source code files.
 
+I split the dataset into 1793, 300, 294 sequences for training, validation and test respectively.
+
 Depending on whether you are enabling L2 regularization, you may need to apply a patch (see [below](#norm-patch)),
 unless you are running a bleeding-edge version or release version later than 0.2.0-post3.
 If you do, make sure that the patching succeeded.
@@ -49,11 +51,14 @@ $ patch -d <visdom-package-directory> -p2 <visdom-video.patch
 
 ### Result so far
 
-Seems that the training process is very unstable with RMSprop.  It either got comparably good results very soon or
-got completely thrown off.
+Seems that the training process is very unstable even with SGD without momentum.
+It either got comparably good results very soon or got completely thrown off.
 
-Also when I say "good", I only got at most 45% IOU on KTH validation set.  I indeed got 75% on training set though.
-I split the dataset into 1793, 300, 294 sequences for training, validation and test respectively.
+The best result on validation dataset differs when I evaluate on all complete sequences or all 30-frame
+sequences, which I got 45% and 65% respectively.  The reason of the huge drop by complete sequences is
+that the bounding boxes are given by a detector, which is noisy and often fail horribly on the first frame.
+
+I indeed got 75% on training set though.
 
 ### TODO
 

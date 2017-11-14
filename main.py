@@ -30,6 +30,7 @@ def update_learning_rate(opt, lr):
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchsize', type=int, default=8)
 parser.add_argument('--seqlen', type=int, default=30)
+parser.add_argument('--validate-complete-sequence', action='store_true')
 parser.add_argument('--num-workers', type=int, default=0)
 parser.add_argument('--statesize', type=int, default=128)
 parser.add_argument('--n-dfn-channels', type=int, default=10)
@@ -46,16 +47,18 @@ args = parser.parse_args()
 
 image_size = (120, 160)
 glim_size = (40, 40)
-n_glims = 2     # DEBUG
+n_glims = 1
+valid_batch_size = 1 if args.validate_complete_sequence else args.batchsize
+valid_seqlen = None if args.validate_complete_sequence else args.seqlen
 
 train_dataset = kth.KTHDataset(
         'frames', 'KTHBoundingBoxInfoTrain.txt', seqlen=args.seqlen)
 valid_dataset = kth.KTHDataset(
-        'frames', 'KTHBoundingBoxInfoValidation.txt', seqlen=args.seqlen)
+        'frames', 'KTHBoundingBoxInfoValidation.txt', seqlen=valid_seqlen)
 train_dataloader = kth.KTHDataLoader(
         train_dataset, args.batchsize, num_workers=args.num_workers)
 valid_dataloader = kth.KTHDataLoader(
-        valid_dataset, args.batchsize, num_workers=args.num_workers, shuffle=False)
+        valid_dataset, valid_batch_size, num_workers=args.num_workers, shuffle=False)
 
 feature_extractor = cuda(alexnet.AlexNetModel(n_out_feature_maps=args.n_dfn_channels))
 attender = cuda(attention.RATMAttention(image_size, glim_size))
@@ -159,9 +162,9 @@ while True:
         _images, _bboxes, _lengths = valid_item
         images, bboxes, lengths = tovar(_images, _bboxes, _lengths, volatile=True)
         seqlen = images.size()[1]
-        bboxes = bboxes.unsqueeze(2).expand(1, seqlen, n_glims, 4)
+        bboxes = bboxes.unsqueeze(2).expand(valid_batch_size, seqlen, n_glims, 4)
         presences = tovar(
-                get_presence(1, seqlen, n_glims, lengths))
+                get_presence(valid_batch_size, seqlen, n_glims, lengths))
 
         bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, \
                 pres, _, raw_glims = tracker(
@@ -213,7 +216,7 @@ while True:
                     opts=dict(title=name, fps=10),
                     )
 
-    avg_iou = avg_iou / len(valid_dataset)
+    avg_iou = avg_iou / len(valid_dataloader)
     print('VALID-AVG', epoch, avg_iou)
 
     wm.append_scalar('Average IOU (validation)', avg_iou)
