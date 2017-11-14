@@ -53,6 +53,7 @@ parser.add_argument('--lr-scale-ratio', type=float, default=1.2)
 parser.add_argument('--lr-min', type=float, default=1e-5)
 parser.add_argument('--zoneout', type=float, default=0.05)
 parser.add_argument('--opt', type=str, default='SGD')
+parser.add_argument('--visdom-host', type=str, default='localhost')
 
 args = parser.parse_args()
 
@@ -98,7 +99,7 @@ opt = getattr(T.optim, args.opt)(params, lr=lr)
 # Main program
 epoch = 0
 
-wm = viz.VisdomWindowManager()
+wm = viz.VisdomWindowManager(server='http://' + args.visdom_host)
 
 while True:
     epoch += 1
