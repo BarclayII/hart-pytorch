@@ -10,9 +10,11 @@ import argparse
 import matplotlib.pyplot as PL
 import cv2
 import numpy as np
+import logging
 
 from util import *
 
+logging.getLogger().setLevel('INFO')
 
 def get_presence(batch_size, seqlen, n_glims, lengths):
     '''
@@ -54,6 +56,10 @@ parser.add_argument('--lr-min', type=float, default=1e-5)
 parser.add_argument('--zoneout', type=float, default=0.05)
 parser.add_argument('--opt', type=str, default='SGD')
 parser.add_argument('--visdom-host', type=str, default='localhost')
+parser.add_argument('--kth-dir', type=str, default='.')
+parser.add_argument('--imagenet-dir', type=str, default='.')
+parser.add_argument('--dataset', type=str, default='kth',
+                    choices=['kth', 'imagenet'])
 
 args = parser.parse_args()
 
@@ -64,10 +70,34 @@ valid_batch_size = 1 if args.validate_complete_sequence else args.batchsize
 valid_seqlen = None if args.validate_complete_sequence else args.seqlen
 
 # Dataset
-train_dataset = dataset.KTHDataset(
-        'frames', 'KTHBoundingBoxInfoTrain.txt', seqlen=args.seqlen)
-valid_dataset = dataset.KTHDataset(
-        'frames', 'KTHBoundingBoxInfoValidation.txt', seqlen=valid_seqlen)
+if args.dataset == 'kth':
+    frames_dir = os.path.join(args.kth_dir, 'frames')
+    bbox_info_train = os.path.join(
+            args.kth_dir, 'KTHBoundingBoxInfoTrain.txt')
+    bbox_info_valid = os.path.join(
+            args.kth_dir, 'KTHBoundingBoxInfoValidation.txt')
+    train_dataset = dataset.KTHDataset(
+            frames_dir, bbox_info_train, seqlen=args.seqlen,
+            rows=image_size[0], cols=image_size[1])
+    valid_dataset = dataset.KTHDataset(
+            frames_dir, bbox_info_valid, seqlen=valid_seqlen,
+            rows=image_size[0], cols=image_size[1])
+elif args.dataset == 'imagenet':
+    data_dir = os.path.join(args.imagenet_dir, 'Data/VID')
+    anno_dir = os.path.join(args.imagenet_dir, 'Annotations/VID')
+    train_dataset = dataset.ImagenetVIDDataset(
+            os.path.join(data_dir, 'train'),
+            os.path.join(args.imagenet_dir, 'train-pkl'),
+            os.path.join(anno_dir, 'train'),
+            seqlen=args.seqlen,
+            rows=image_size[0], cols=image_size[1])
+    valid_dataset = dataset.ImagenetVIDDataset(
+            os.path.join(data_dir, 'val'),
+            os.path.join(args.imagenet_dir, 'valid-pkl'),
+            os.path.join(anno_dir, 'val'),
+            seqlen=valid_seqlen,
+            rows=image_size[0], cols=image_size[1])
+
 train_dataloader = dataset.VideoDataLoader(
         train_dataset, args.batchsize, num_workers=args.num_workers)
 valid_dataloader = dataset.VideoDataLoader(
@@ -87,7 +117,7 @@ cell = cuda(attention.AttentionCell(
         n_glims=n_glims,
         n_dfn_channels=args.n_dfn_channels))
 tracker = cuda(hart.HART(cell))
-weights = [1, 1, 1]
+weights = [1, 1, 1, 1]
 al = cuda(adaptive_loss.AdaptiveLoss(weights=weights))
 lr = args.lr
 
@@ -136,9 +166,9 @@ while True:
                         image_size[0],
                         image_size[1],
                         )
-        att_loss = att_intersection_loss + att_area_loss
+        #att_loss = att_intersection_loss + att_area_loss
 
-        losses = [bbox_loss, att_loss, obj_mask_xe]
+        losses = [bbox_loss, att_intersection_loss, att_area_loss, obj_mask_xe]
         loss = al(*losses)
 
         if args.l2reg:
@@ -157,7 +187,9 @@ while True:
 
         # Visualizations
         wm.append_scalar('bbox IOU loss', toscalar(bbox_loss))
-        wm.append_scalar('attention loss', toscalar(att_loss))
+        wm.append_scalar('attention intersection loss',
+                         toscalar(att_intersection_loss))
+        wm.append_scalar('attention area loss', toscalar(att_area_loss))
         wm.append_scalar('mask cross entropy', toscalar(obj_mask_xe))
         wm.append_scalar('overall loss', toscalar(loss))
         wm.append_scalar('average IOU (train)', toscalar(iou_mean))
@@ -166,7 +198,8 @@ while True:
                          opts=dict(
                              legend=[
                                  'bbox',
-                                 'attention-loss',
+                                 'attention-intersection-loss',
+                                 'attention-area-loss',
                                  'mask-cross-entropy',
                                  ]
                              )
