@@ -86,5 +86,5 @@ Some miscellaneous modules:
 - [x] Validation and Test
 - [x] Visualization (with Visdom, patch needed; see above)
 - [x] L2 Regularization (patch needed; see above)
-- [ ] ImageNet VID challenge
+- [x] ImageNet VID challenge
 - [ ] KITTI
