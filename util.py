@@ -133,13 +133,13 @@ def anybig(x):
 
 
 def check_grads(named_params):
+    fail = False
     for n, p in named_params:
         if p.grad is not None:
-            try:
-                assert not anynan(p.grad) or anybig(p.grad)
-            except AssertionError:
+            if anynan(p.grad) or anybig(p.grad):
                 print(n, 'has NaN or big gradient')
-                raise
+                fail = True
+    return fail
 
 
 def clip_grads(named_params, max_norm):

@@ -53,6 +53,9 @@ class HART(nn.Module):
         # (batch_size, nframes, nobjs, att_params)
         atts = T.cat([att0.unsqueeze(1), atts], 1)
         bbox_from_att = self.attention_cell.attender.att_to_bbox(atts)
+        # We need to subtract the bias on attention here, since we impose a
+        # bias on the initial spatial attention, hence the bias on all
+        # subsequent attentions.
         bbox_from_att_nobias = self.attention_cell.attender.att_to_bbox(
                 atts - self.attention_cell.att_bias)
 

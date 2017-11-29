@@ -270,6 +270,7 @@ class AttentionCell(nn.Module):
         dfn_norm: L2 norm of generated DFN parameters
         prenorm_glims: as @glims, but not contrast-normalized (for viz)
         '''
+        # Extract raw glimpse from spatial attention
         # (batch_size, n_glims, nchannels, n_glim_rows, n_glim_cols)
         prenorm_glims = glims = self.attender(x, spatial_att)
         batch_size, n_glims, nchannels, n_glim_rows, n_glim_cols = glims.size()
@@ -277,11 +278,17 @@ class AttentionCell(nn.Module):
         if self.normalize_glimpse:
             glims = util.normalize_contrast(glims)
 
+        # Extract glimpse features
         # (batch_size * n_glims, ...)
         glims_reshaped = glims.view(-1, nchannels, n_glim_rows, n_glim_cols)
         raw_feats, readout, feats = self.feature_extractor(glims_reshaped)
 
         if appearance is not None:
+            # If we have appearance vector (i.e. not computing the initial RNN
+            # state), construct a 2-layer dynamic filter according to the
+            # appearance vector.
+            # The mask is computed by applying the dynamic filters on the
+            # features.  The features will then be masked.
             appearance = appearance.view(-1, self.app_size)
             _, _, raw_feat_rows, raw_feat_cols = raw_feats.size()
 
@@ -305,7 +312,7 @@ class AttentionCell(nn.Module):
             mask_logit = None
             dfn_l2 = 0
 
-        # Now I'm collapsing all glimpse features of a single sample into the
+        # Now I'm collapsing glimpse features for every object into the
         # same vector.  Not sure if I need to make a separate one for each
         # glimpse.
         projected_feats = self.proj(
@@ -358,13 +365,14 @@ class AttentionCell(nn.Module):
         mask_feats = mask_feats.view(
                 batch_size, self.n_glims, self.mask_feat_size)
 
+        # Compute the predicted 
         att_pred = self.att_pred_layer(att_input)
         att_pred = att_pred.view(batch_size, self.n_glims, self.att_params)
         att_delta_scale = F.sigmoid(self.att_delta_scale_logit)
         new_att = spatial_att + att_delta_scale.unsqueeze(0) * att_pred
 
         # The original HART paper uses RNN state itself as appearance feature
-        # vector...
+        # vector...  Here I'm projecting it once.
         new_app = self.app_predictor(rnn_output)
         new_app = new_app.view(batch_size, self.n_glims, self.app_size)
 

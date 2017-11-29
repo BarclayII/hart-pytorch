@@ -36,7 +36,8 @@ def get_presence(batch_size, seqlen, n_glims, lengths):
 
 
 def update_learning_rate(opt, lr):
-    opt.param_groups[0]['lr'] = lr
+    for pg in opt.param_groups:
+        pg['lr'] = lr
 
 
 # Argument parsing
@@ -60,11 +61,15 @@ parser.add_argument('--kth-dir', type=str, default='.')
 parser.add_argument('--imagenet-dir', type=str, default='.')
 parser.add_argument('--dataset', type=str, default='kth',
                     choices=['kth', 'imagenet'])
+parser.add_argument('--max-iter-per-epoch', type=int, default=5000)
+parser.add_argument('--image-rows', type=int, default=120)
+parser.add_argument('--image-cols', type=int, default=160)
+parser.add_argument('--glim-size', type=int, default=40)
 
 args = parser.parse_args()
 
-image_size = (120, 160)
-glim_size = (40, 40)
+image_size = (args.image_rows, args.image_cols)
+glim_size = (args.glim_size, args.glim_size)
 n_glims = 1
 valid_batch_size = 1 if args.validate_complete_sequence else args.batchsize
 valid_seqlen = None if args.validate_complete_sequence else args.seqlen
@@ -101,7 +106,7 @@ elif args.dataset == 'imagenet':
 train_dataloader = dataset.VideoDataLoader(
         train_dataset, args.batchsize, num_workers=args.num_workers)
 valid_dataloader = dataset.VideoDataLoader(
-        valid_dataset, valid_batch_size, num_workers=args.num_workers, shuffle=False)
+        valid_dataset, valid_batch_size, num_workers=args.num_workers)
 
 # Model
 feature_extractor = cuda(alexnet.AlexNetModel(n_out_feature_maps=args.n_dfn_channels))
@@ -130,18 +135,22 @@ opt = getattr(T.optim, args.opt)(params, lr=lr)
 epoch = 0
 
 wm = viz.VisdomWindowManager(server='http://' + args.visdom_host)
+train_it = iter(train_dataloader)
+valid_it = iter(valid_dataloader)
 
 while True:
     epoch += 1
-
-    itr = 0
 
     # Training goes here...
     tracker.train()
     al.train()
 
-    for train_item in train_dataloader:
-        itr += 1
+    for itr in range(args.max_iter_per_epoch):
+        try:
+            train_item = next(train_it)
+        except StopIteration:
+            train_it = iter(train_dataloader)
+            train_item = next(train_it)
 
         # bbox prediction
         _images, _bboxes, _lengths = train_item
@@ -179,7 +188,9 @@ while True:
         # Step
         opt.zero_grad()
         loss.backward()
-        check_grads(named_params)
+        if check_grads(named_params):
+            print('Skipping...')
+            continue
         clip_grads(named_params, args.gradclip)
         opt.step()
 
@@ -212,7 +223,13 @@ while True:
     tracker.eval()
     avg_iou = 0
 
-    for i, valid_item in enumerate(valid_dataloader):
+    for i in range(args.max_iter_per_epoch):
+        try:
+            valid_item = next(valid_it)
+        except StopIteration:
+            valid_it = iter(valid_dataloader)
+            valid_item = next(valid_it)
+
         _images, _bboxes, _lengths = valid_item
         images, bboxes, lengths = tovar(_images, _bboxes, _lengths, volatile=True)
         seqlen = images.size()[1]
