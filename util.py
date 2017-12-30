@@ -235,5 +235,5 @@ def torch_normalize_image(x):
 def torch_unnormalize_image(x):
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
-    return x * std + mean
+    return np.clip(x * std + mean, 0, 1)
 

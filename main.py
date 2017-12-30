@@ -160,7 +160,7 @@ while True:
                 get_presence(args.batchsize, args.seqlen, n_glims, lengths))
 
         bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, \
-                pres, dfn_l2, raw_glims = tracker(
+                pres, dfn_l2, raw_glims, apps = tracker(
                         images, bboxes[:, 0], presences[:, 0])
 
         # Loss computation
@@ -190,6 +190,7 @@ while True:
         loss.backward()
         if check_grads(named_params):
             print('Skipping...')
+            tracker.attention_cell._att_bias.data.zero_()
             continue
         clip_grads(named_params, args.gradclip)
         opt.step()
@@ -215,6 +216,10 @@ while True:
                                  ]
                              )
                          )
+        wm.heatmap(
+                tonumpy(apps[0, :, 0]),
+                win='app',
+                )
 
     print(tonumpy(bboxes))
     print(tonumpy(bbox_pred))
@@ -238,7 +243,7 @@ while True:
                 get_presence(valid_batch_size, seqlen, n_glims, lengths))
 
         bbox_pred, atts, mask_logits, bbox_from_att, bbox_from_att_nobias, \
-                pres, _, raw_glims = tracker(
+                pres, _, raw_glims, apps = tracker(
                         images, bboxes[:, 0], presences[:, 0])
 
         current_iou = toscalar(iou(bbox_pred, bboxes).mean())
@@ -286,8 +291,12 @@ while True:
                     win=name,
                     opts=dict(title=name, fps=10),
                     )
+            wm.heatmap(
+                    tonumpy(apps[0, :, 0]),
+                    win='app',
+                    )
 
-    avg_iou = avg_iou / len(valid_dataloader)
+    avg_iou = avg_iou / args.max_iter_per_epoch
     print('VALID-AVG', epoch, avg_iou)
 
     wm.append_scalar('Average IOU (validation)', avg_iou)

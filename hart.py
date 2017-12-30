@@ -80,6 +80,7 @@ class HART(nn.Module):
                 presence_logits,
                 dfn_l2s.mean(),
                 raw_glims,
+                apps,
                 )
 
     def losses(self,
