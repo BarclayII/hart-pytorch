@@ -5,7 +5,7 @@ A minimal (?) reproduction of [HART](https://github.com/akosiorek/hart).
 
 ### Usage
 
-Download KTH Dataset first from [here](https://www.dropbox.com/s/12zmghlk1qm49n8/ptb.p.gz?dl=0)
+Download KTH Dataset first from [here](https://www.dropbox.com/s/yrw2ki13m2evrk6/frames.tar.gz?dl=0)
 and unpack it to the repo directory.
 You will have `KTHBoundingBoxInfo.txt` and a directory called `frames` in the
 same place as the source code files.
